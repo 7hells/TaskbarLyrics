@@ -72,6 +72,7 @@ if ($settingsWindow.Contains('Description = definition.Description')) { $errors.
 if ($mediaHotkeyCatalog.Contains('string Description')) { $errors.Add('media hotkey catalog description field should remain removed') }
 
 $requiredHtml = @(
+    'id="floatingTopmostDescription"', 'aria-describedby="floatingTopmostDescription"',
     'id="sourceGrid"', 'id="priorityList"', 'id="mediaHotkeyList"', 'id="selectPopover"', 'role="listbox"',
     'id="colorPopover"', 'id="colorArea"', 'id="colorSaturationSlider"', 'id="colorBrightnessSlider"',
     'id="restoreDialog"', 'id="clearDialog"',

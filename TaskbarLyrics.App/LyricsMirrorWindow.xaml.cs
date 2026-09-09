@@ -10,6 +10,7 @@ internal partial class LyricsMirrorWindow : Window, IDisposable
 {
     private readonly Dictionary<string, string> _pendingScripts = new(StringComparer.Ordinal);
     private readonly EmbeddedTaskbarAnchor _embeddedTaskbarAnchor = new();
+    private readonly SmartTopmostController _smartTopmostController;
     private DisplayMonitor _displayMonitor;
     private AppSettings _settings = new();
     private bool _isWebReady;
@@ -21,9 +22,11 @@ internal partial class LyricsMirrorWindow : Window, IDisposable
     public LyricsMirrorWindow(DisplayMonitor displayMonitor)
     {
         InitializeComponent();
+        _smartTopmostController = new SmartTopmostController(this);
         _displayMonitor = displayMonitor;
         Loaded += OnLoaded;
         SourceInitialized += OnSourceInitialized;
+        IsVisibleChanged += OnIsVisibleChanged;
         Closed += OnClosed;
     }
 
@@ -37,6 +40,10 @@ internal partial class LyricsMirrorWindow : Window, IDisposable
     public void ApplySettings(AppSettings settings)
     {
         _settings = settings.Clone();
+        _smartTopmostController.ApplySettings(
+            _settings.UseFloatingWindow,
+            _settings.ForceAlwaysOnTop,
+            _displayMonitor.Bounds);
         var pixelsPerDip = _displayMonitor.PixelsPerDip;
         var metrics = LyricsLayoutMetrics.Create(_settings, pixelsPerDip);
         Width = !_settings.UseFloatingWindow
@@ -68,9 +75,6 @@ internal partial class LyricsMirrorWindow : Window, IDisposable
 
         _embeddedTaskbarAnchor.Detach();
         TaskbarPlacementService.Anchor(this, _settings, _displayMonitor);
-        TaskbarPlacementService.Attach(
-            this,
-            _settings.UseFloatingWindow && _settings.ForceAlwaysOnTop);
         ExecutePendingScript("style");
     }
 
@@ -110,10 +114,12 @@ internal partial class LyricsMirrorWindow : Window, IDisposable
         _isDisposed = true;
         Loaded -= OnLoaded;
         SourceInitialized -= OnSourceInitialized;
+        IsVisibleChanged -= OnIsVisibleChanged;
         Closed -= OnClosed;
         LyricsWebView.NavigationCompleted -= OnNavigationCompleted;
         LyricsWebView.Dispose();
         _embeddedTaskbarAnchor.Dispose();
+        _smartTopmostController.Dispose();
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
@@ -129,6 +135,11 @@ internal partial class LyricsMirrorWindow : Window, IDisposable
         }
 
         ApplySettings(_settings);
+    }
+
+    private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        _smartTopmostController.OnWindowVisibilityChanged(IsVisible);
     }
 
     private void OnClosed(object? sender, EventArgs e)

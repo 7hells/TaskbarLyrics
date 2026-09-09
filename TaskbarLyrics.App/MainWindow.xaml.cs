@@ -31,6 +31,7 @@ public partial class MainWindow : Window, IDisposable
     private readonly DispatcherTimer _spectrumTimer;
     private readonly TaskbarPlacementService _taskbarPlacementService = new();
     private readonly EmbeddedTaskbarAnchor _embeddedTaskbarAnchor = new();
+    private readonly SmartTopmostController _smartTopmostController;
     private LocalMediaCoverProvider? _localMediaCoverProvider;
     private Media.Color _primaryTextColor = Media.Colors.White;
     private Media.Color _secondaryTextColor = ForegroundColorPolicy.CreateSecondaryColor(Media.Colors.White);
@@ -105,6 +106,8 @@ public partial class MainWindow : Window, IDisposable
     internal MainWindow(TrackLyricOffsetStore trackLyricOffsetStore, IAppCompositionRoot compositionRoot)
     {
         InitializeComponent();
+
+        _smartTopmostController = new SmartTopmostController(this);
 
         _trackLyricOffsetStore = trackLyricOffsetStore;
         _compositionRoot = compositionRoot;
@@ -386,6 +389,8 @@ public partial class MainWindow : Window, IDisposable
 
     private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
+        _smartTopmostController.OnWindowVisibilityChanged(IsVisible);
+
         if (IsVisible)
         {
             if (!_timer.IsEnabled)
@@ -461,6 +466,7 @@ public partial class MainWindow : Window, IDisposable
         _localMediaCoverProvider?.Dispose();
         _audioSpectrumService.Dispose();
         _embeddedTaskbarAnchor.Dispose();
+        _smartTopmostController.Dispose();
         (_musicSessionProvider as IDisposable)?.Dispose();
         GC.SuppressFinalize(this);
     }
@@ -1744,12 +1750,10 @@ public partial class MainWindow : Window, IDisposable
 
     private void AttachToTaskbarHost()
     {
-        if (!_currentSettings.UseFloatingWindow)
-        {
-            return;
-        }
-
-        TaskbarPlacementService.Attach(this, _forceAlwaysOnTop);
+        _smartTopmostController.ApplySettings(
+            _currentSettings.UseFloatingWindow,
+            _forceAlwaysOnTop,
+            _displayMonitor?.Bounds);
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)

@@ -225,20 +225,25 @@ internal sealed class TaskbarPlacementService
             defaultThickness);
     }
 
-    public static void Attach(Window window, bool forceAlwaysOnTop)
+    internal static bool ApplyTopmostState(
+        Window window,
+        bool shouldBeTopmost,
+        IntPtr windowToPlaceAfter)
     {
         var hwnd = new WindowInteropHelper(window).Handle;
         if (hwnd == IntPtr.Zero)
         {
-            return;
+            return false;
         }
 
-        window.Topmost = forceAlwaysOnTop;
-        var hWndInsertAfter = forceAlwaysOnTop
+        window.Topmost = shouldBeTopmost;
+        var hWndInsertAfter = shouldBeTopmost
             ? TaskbarNativeMethods.HWND_TOPMOST
-            : TaskbarNativeMethods.HWND_NOTOPMOST;
+            : windowToPlaceAfter != IntPtr.Zero
+                ? windowToPlaceAfter
+                : TaskbarNativeMethods.HWND_NOTOPMOST;
 
-        TaskbarNativeMethods.SetWindowPos(
+        return TaskbarNativeMethods.SetWindowPos(
             hwnd,
             hWndInsertAfter,
             0,
@@ -248,9 +253,7 @@ internal sealed class TaskbarPlacementService
             TaskbarNativeMethods.SWP_NOMOVE |
             TaskbarNativeMethods.SWP_NOSIZE |
             TaskbarNativeMethods.SWP_NOACTIVATE |
-            TaskbarNativeMethods.SWP_ASYNCWINDOWPOS |
-            TaskbarNativeMethods.SWP_SHOWWINDOW);
-        TaskbarNativeMethods.ShowWindow(hwnd, TaskbarNativeMethods.SW_SHOWNOACTIVATE);
+            TaskbarNativeMethods.SWP_ASYNCWINDOWPOS);
     }
 
     public static void ApplyToolWindowStyle(IntPtr hwnd)
