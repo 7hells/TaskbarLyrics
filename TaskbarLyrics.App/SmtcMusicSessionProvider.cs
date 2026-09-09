@@ -116,6 +116,44 @@ internal sealed class CoverVisualTransitionState
     }
 }
 
+internal sealed class ProcessFallbackDetectionCache
+{
+    internal static readonly TimeSpan RefreshInterval = TimeSpan.FromSeconds(1);
+
+    private readonly Func<DateTimeOffset> _utcNow;
+    private DateTimeOffset _nextRefreshUtc;
+    private string? _cachedSource;
+    private bool _hasCachedResult;
+
+    internal ProcessFallbackDetectionCache(Func<DateTimeOffset>? utcNow = null)
+    {
+        _utcNow = utcNow ?? (() => DateTimeOffset.UtcNow);
+    }
+
+    internal string? GetOrRefresh(Func<string?> detect)
+    {
+        ArgumentNullException.ThrowIfNull(detect);
+
+        var nowUtc = _utcNow();
+        if (_hasCachedResult && nowUtc < _nextRefreshUtc)
+        {
+            return _cachedSource;
+        }
+
+        _cachedSource = detect();
+        _hasCachedResult = true;
+        _nextRefreshUtc = nowUtc + RefreshInterval;
+        return _cachedSource;
+    }
+
+    internal void Invalidate()
+    {
+        _cachedSource = null;
+        _hasCachedResult = false;
+        _nextRefreshUtc = default;
+    }
+}
+
 public sealed class SmtcMusicSessionProvider : IMusicSessionProvider, IMediaPlaybackController, IPlayerRecognitionController, IDisposable
 {
     private static readonly string[] DefaultRecognitionOrder = { "QQMusic", "Netease", "Kugou", "Spotify" };
@@ -128,6 +166,7 @@ public sealed class SmtcMusicSessionProvider : IMusicSessionProvider, IMediaPlay
     private readonly SemaphoreSlim _managerLock = new(1, 1);
     private readonly TimelinePositionStrategyRegistry _timelineStrategyRegistry = TimelinePositionStrategyRegistry.CreateDefault();
     private readonly ActiveSessionCache<GlobalSystemMediaTransportControlsSession> _activeSessionCache = new();
+    private readonly ProcessFallbackDetectionCache _processFallbackDetectionCache = new();
     private GlobalSystemMediaTransportControlsSessionManager? _manager;
     private SmtcTimelineDiagnostics? _lastTimelineDiagnostics;
     private string? _currentLyricSourceApp;
@@ -160,6 +199,7 @@ public sealed class SmtcMusicSessionProvider : IMusicSessionProvider, IMediaPlay
         var normalized = NormalizeRecognitionOrder(order, _enabledSources);
         _recognitionOrder = normalized.ToArray();
         _activeSessionCache.Clear();
+        _processFallbackDetectionCache.Invalidate();
     }
 
     public SmtcTimelineDiagnostics? GetLastTimelineDiagnostics()
@@ -889,6 +929,11 @@ public sealed class SmtcMusicSessionProvider : IMusicSessionProvider, IMediaPlay
     }
 
     private string? DetectRunningSource()
+    {
+        return _processFallbackDetectionCache.GetOrRefresh(DetectRunningSourceUncached);
+    }
+
+    private string? DetectRunningSourceUncached()
     {
         foreach (var source in _recognitionOrder)
         {

@@ -573,6 +573,10 @@ public partial class MainWindow : Window, IDisposable
 
             if (inputKind == PlaybackInputKind.NoPlayback)
             {
+                _isCurrentFramePureMusic = false;
+                _isCurrentPlaybackPlaying = false;
+                UpdateSpectrumCaptureState();
+
                 var noPlaybackSnapshot = snapshot with
                 {
                     Track = null,
