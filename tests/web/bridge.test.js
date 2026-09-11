@@ -601,11 +601,24 @@ describe("settings WebView bridge", () => {
       type: "lyricDiagnosticsState",
       payload: {
         status: "success",
+        apply: { status: "success", providerId: "QQMusic", candidateId: "accepted-1", mode: "remember", message: "已应用并写入歌词缓存。" }
+      }
+    });
+    expect(document.querySelector("#lyricDiagnosticsStatus").dataset.state).toBe("success");
+    expect(document.querySelector("#lyricDiagnosticsStatus").textContent).toContain("已应用并写入歌词缓存");
+    expect(document.querySelector('[data-candidate-id="accepted-1"][data-apply-mode="remember"]').textContent).toContain("已应用并记住");
+
+    dom.window.settingsApp.receive({
+      version: 1,
+      type: "lyricDiagnosticsState",
+      payload: {
+        status: "success",
         apply: { status: "error", providerId: "QQMusic", candidateId: "accepted-1", mode: "remember", message: "当前歌曲已切换，请重新查找。" }
       }
     });
     expect(document.querySelector("#lyricDiagnosticsStatus").dataset.state).toBe("error");
     expect(document.querySelector("#lyricDiagnosticsStatus").textContent).toContain("当前歌曲已切换");
+    expect(document.querySelector('[data-candidate-id="accepted-1"][data-apply-mode="remember"]').textContent).toContain("使用并记住");
   });
 
   it("shows empty and error diagnostic states without stale report content", async () => {
