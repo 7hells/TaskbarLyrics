@@ -120,6 +120,11 @@ public sealed class AppSettings
 
     public bool ShowLyricTranslation { get; set; }
 
+    // When enabled, the lyrics window shows only the current line and shrinks
+    // its height to fit a single row; the next-line preview and translations
+    // stay hidden while this mode is active.
+    public bool ShowSingleLineLyrics { get; set; }
+
     public bool EnableWordScanning { get; set; } = true;
 
     public ToolWindowTheme ToolWindowTheme { get; set; } = ToolWindowTheme.System;

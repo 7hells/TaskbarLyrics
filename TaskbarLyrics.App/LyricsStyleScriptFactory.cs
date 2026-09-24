@@ -20,6 +20,7 @@ internal static class LyricsStyleScriptFactory
             fontFamily = AppSettings.NormalizeFontFamily(settings.FontFamily),
             layoutScalePercent = metrics.ScalePercent,
             fontSize = metrics.FontSize,
+            singleLineMode = settings.ShowSingleLineLyrics,
             showCover = settings.ShowCover,
             coverSize = metrics.CoverSize,
             coverGap = metrics.CoverGap,

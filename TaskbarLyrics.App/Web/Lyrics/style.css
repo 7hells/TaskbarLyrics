@@ -495,6 +495,13 @@ html, body {
   transition: none !important;
 }
 
+/* Single-line mode: only the current line participates in layout. The
+   next-line preview, incoming line, and translation pair stay hidden. */
+.layout.single-line .track > .next-line,
+.layout.single-line .incoming-translation-pair {
+  display: none;
+}
+
 .current-line.leaving {
   opacity: 0.16;
   transform: scale(0.972);

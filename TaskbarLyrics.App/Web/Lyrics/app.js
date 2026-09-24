@@ -46,6 +46,7 @@ let isPlaybackPlaying = false;
 let wordScanFreezeState = null;
 let wordScanResumeCatchUpState = null;
 let isTranslationMode = false;
+let isSingleLineMode = false;
 let secondaryOpacity = 0.72;
 let lastLineProgress = Number.NaN;
 let lastCurrentLineIndex = -1;
@@ -521,6 +522,22 @@ function setTranslationMode(enabled) {
   }
 }
 
+function applySingleLineMode(enabled) {
+  if (isSingleLineMode === enabled) {
+    return;
+  }
+
+  isSingleLineMode = enabled;
+  layoutEl.classList.toggle("single-line", enabled);
+  // A layout switch invalidates in-flight roll transitions and the
+  // translation-pair presentation; both are unreachable in single-line mode.
+  cancelActiveTransition();
+  if (enabled) {
+    setTranslationMode(false);
+    setSecondaryLine(" ");
+  }
+}
+
 function setIncomingTranslationPair(original, translation, wordScanProgress) {
   const translationDisplay = resolveTranslationDisplay(translation);
   setLineText(
@@ -550,7 +567,7 @@ function clearIncomingTranslationPair() {
 }
 
 function updateSecondaryOpacity(progress) {
-  if (isTranslationMode) {
+  if (isTranslationMode || isSingleLineMode) {
     nextLineEl.style.opacity = "";
     return;
   }
@@ -637,7 +654,9 @@ function createPresentationFrame({
         : presentationApi.SCENES.MESSAGE;
   return presentationApi.normalizeFrame({
     scene: requestedScene || derivedScene,
-    layout: translationMode ? presentationApi.LAYOUTS.TRANSLATION_PAIR : presentationApi.LAYOUTS.SINGLE,
+    layout: translationMode && !isSingleLineMode
+      ? presentationApi.LAYOUTS.TRANSLATION_PAIR
+      : presentationApi.LAYOUTS.SINGLE,
     current: normalizedCurrent,
     next,
     progress,
@@ -648,7 +667,7 @@ function createPresentationFrame({
     wordScanProgress,
     currentTranslation,
     nextTranslation,
-    translationMode
+    translationMode: translationMode && !isSingleLineMode
   });
 }
 
@@ -1301,6 +1320,21 @@ function executeLayerTransition(plan, parameters) {
   }
 }
 
+function asSingleLineReplacePlan(plan) {
+  const rollKinds = [
+    presentationApi.TRANSITIONS.SINGLE_ROLL,
+    presentationApi.TRANSITIONS.TRANSLATION_PAIR_ROLL
+  ];
+  return rollKinds.includes(plan.kind)
+    ? Object.freeze({
+      kind: presentationApi.TRANSITIONS.REPLACE_IN_PLACE,
+      from: plan.from,
+      to: plan.to,
+      durationMs: 0
+    })
+    : plan;
+}
+
 function applyFrameWithoutTransition(
   safeCurrent,
   safeNext,
@@ -1571,8 +1605,9 @@ function applyFrame(
       animateTransition: true,
       reducedMotion: prefersReducedMotion()
     });
+  const effectivePlan = isSingleLineMode ? asSingleLineReplacePlan(plan) : plan;
   const normalized = presentationApi.normalizeFrame(resolvedTargetFrame);
-  transitionDispatcher.execute(plan, {
+  transitionDispatcher.execute(effectivePlan, {
     operation: transitionOperations.LYRICS_FRAME,
     frame: normalized
   });
@@ -1589,9 +1624,17 @@ function updateMetrics() {
   const measuredViewportHeight = viewportEl.clientHeight || 30;
   const minimumHostHeight = Math.max(2, Math.round(26 * layoutScaleFactor));
   const hostHeight = Math.max(minimumHostHeight, measuredViewportHeight - viewportDescenderBufferPx);
-  rowHeightPx = Math.max(1, Math.floor(hostHeight / 2));
-  rowGapPx = Math.max(0, hostHeight - (rowHeightPx * 2));
-  linePitchPx = rowHeightPx + rowGapPx;
+  if (isSingleLineMode) {
+    // Single-line mode: the current line fills the viewport; secondary rows
+    // are display:none and never participate in layout.
+    rowHeightPx = Math.max(1, Math.floor(hostHeight));
+    rowGapPx = 0;
+    linePitchPx = rowHeightPx;
+  } else {
+    rowHeightPx = Math.max(1, Math.floor(hostHeight / 2));
+    rowGapPx = Math.max(0, hostHeight - (rowHeightPx * 2));
+    linePitchPx = rowHeightPx + rowGapPx;
+  }
   const currentSizeMax = Math.max(11.2 * layoutScaleFactor, rowHeightPx * 0.92);
   currentSize = Math.min(requestedFontSize, currentSizeMax);
   const nextSize = Math.max(9 * layoutScaleFactor, currentSize * 0.92);
@@ -2251,6 +2294,7 @@ const lyricsApi = {
       return;
     }
 
+    applySingleLineMode(payload.singleLineMode === true);
     root.style.setProperty("--font-family", payload.fontFamily || "\"SF Pro Display\", \"Segoe UI Variable Display\", \"Segoe UI Variable Text\", \"Microsoft YaHei UI\", sans-serif");
     applyLyricsTextAlignment(payload.textAlignment);
     const layoutScalePercent = Number(payload.layoutScalePercent);

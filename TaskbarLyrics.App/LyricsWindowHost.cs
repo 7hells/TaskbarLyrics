@@ -23,6 +23,8 @@ internal sealed class LyricsWindowHost : IDisposable
     private volatile bool _isVisible;
     private bool _isLyricsContentVisible = true;
     private int _startupAbandoned;
+    private DispatcherTimer? _embeddingRefreshTimer;
+    private static readonly TimeSpan EmbeddingRefreshInterval = TimeSpan.FromSeconds(2);
 
     public LyricsWindowHost(
         AppSettings initialSettings,
@@ -152,6 +154,7 @@ internal sealed class LyricsWindowHost : IDisposable
 
         InvokeAsync(() =>
         {
+            _embeddingRefreshTimer?.Stop();
             SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
             CloseMirrorWindows();
             _window?.Close();
@@ -189,6 +192,13 @@ internal sealed class LyricsWindowHost : IDisposable
                 _window.Close();
                 return;
             }
+
+            _embeddingRefreshTimer = new DispatcherTimer(
+                EmbeddingRefreshInterval,
+                DispatcherPriority.Background,
+                OnEmbeddingRefreshTick,
+                _dispatcher);
+            _embeddingRefreshTimer.Start();
 
             _ready.TrySetResult();
             Dispatcher.Run();
@@ -231,6 +241,7 @@ internal sealed class LyricsWindowHost : IDisposable
 
     private void OnLyricsWindowClosed(object? sender, EventArgs e)
     {
+        _embeddingRefreshTimer?.Stop();
         SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
         CloseMirrorWindows();
         _isVisible = false;
@@ -359,6 +370,20 @@ internal sealed class LyricsWindowHost : IDisposable
     private void OnDisplaySettingsChanged(object? sender, EventArgs e)
     {
         InvokeAsync(() => ApplySettingsOnWindowThread(_currentSettings));
+    }
+
+    private void OnEmbeddingRefreshTick(object? sender, EventArgs e)
+    {
+        if (_window is null || _disposed || _currentSettings.UseFloatingWindow || !_isVisible)
+        {
+            return;
+        }
+
+        _window.RefreshTaskbarEmbedding();
+        foreach (var mirrorWindow in _mirrorWindows.Values)
+        {
+            mirrorWindow.RefreshTaskbarEmbedding();
+        }
     }
 
     private void CloseMirrorWindows()

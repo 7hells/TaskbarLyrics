@@ -129,6 +129,9 @@ internal sealed class EmbeddedTaskbarAnchor : IDisposable
     private const long WsVisible = 0x10000000L;
     private const long WsExNoActivate = 0x08000000L;
     private const long WsExToolWindow = 0x00000080L;
+    private const int CoInitMultiThreaded = 0x0;
+    private const int S_OK = 0;
+    private const int S_FALSE = 1;
 
     private IntPtr _windowHandle;
     private IntPtr _taskbarHandle;
@@ -143,6 +146,9 @@ internal sealed class EmbeddedTaskbarAnchor : IDisposable
     private bool _taskListSqueezed;
     private bool _disposed;
     private string? _lastAttachDiagnostic;
+    private readonly ITaskbarObstructionProbe _obstructionProbe = CreateObstructionProbe();
+    private volatile IReadOnlyList<TaskbarObstruction> _cachedObstructions = [];
+    private int _probeGeneration;
 
     public bool IsAttached => _windowHandle != IntPtr.Zero && _parentHandle != IntPtr.Zero;
 
@@ -218,13 +224,9 @@ internal sealed class EmbeddedTaskbarAnchor : IDisposable
 
         _attachedDisplayTarget = EmbeddedTaskbarDisplayTarget.Create(targetDisplay);
 
-        if (!isWindows11)
-        {
-            SqueezeTaskList(parent, settings);
-        }
-
         var attachResult = EmbeddedTaskbarEmbeddingPolicy.FromPositionResult(
-            Position(hwnd, parent, window, settings, targetDisplay));
+            Position(hwnd, parent, taskbar, window, settings, targetDisplay));
+        ScheduleObstructionProbe(hwnd, parent, taskbar, window, settings, targetDisplay);
         ReportAttachOutcome(attachResult, $"Positioned Target={DescribeTarget(targetDisplay)}");
         return attachResult;
     }
@@ -248,6 +250,8 @@ internal sealed class EmbeddedTaskbarAnchor : IDisposable
         _attachedDisplayTarget = null;
         _hasOriginalStyles = false;
         _taskListSqueezed = false;
+        _cachedObstructions = [];
+        Interlocked.Increment(ref _probeGeneration);
     }
 
     public void Dispose()
@@ -261,9 +265,10 @@ internal sealed class EmbeddedTaskbarAnchor : IDisposable
         _disposed = true;
     }
 
-    private static bool Position(
+    private bool Position(
         IntPtr hwnd,
         IntPtr parent,
+        IntPtr taskbarHandle,
         Window window,
         AppSettings settings,
         DisplayMonitor? targetDisplay)
@@ -276,10 +281,12 @@ internal sealed class EmbeddedTaskbarAnchor : IDisposable
         var pixelsPerDip = targetDisplay?.PixelsPerDip ?? TaskbarPlacementService.GetPixelsPerDip(window);
         var taskbarWidth = (parentRect.Right - parentRect.Left) / pixelsPerDip;
         var taskbarHeight = (parentRect.Bottom - parentRect.Top) / pixelsPerDip;
-        var width = AppSettings.ClampEffectiveWindowWidth(
+        var desiredWidth = AppSettings.ClampEffectiveWindowWidth(
             settings.WindowWidth,
             settings.LyricsLayoutScalePercent,
             taskbarWidth);
+        var freeRegion = ResolveFreeRegion(taskbarWidth, settings, desiredWidth);
+        var width = freeRegion.Width;
         var height = LyricsLayoutMetrics.Create(settings, pixelsPerDip).DesiredWindowHeight;
         height = Math.Min(height, taskbarHeight);
 
@@ -293,11 +300,7 @@ internal sealed class EmbeddedTaskbarAnchor : IDisposable
             window.Height = height;
         }
 
-        var clientLeft = EmbeddedTaskbarLayoutCalculator.CalculateHorizontalLeft(
-            taskbarWidth,
-            width,
-            settings.HorizontalAnchor,
-            settings.XOffset);
+        var clientLeft = freeRegion.Left + settings.XOffset;
         var clientTop = EmbeddedTaskbarLayoutCalculator.CalculateVerticalTop(
             taskbarHeight,
             height,
@@ -343,6 +346,95 @@ internal sealed class EmbeddedTaskbarAnchor : IDisposable
             TaskbarNativeMethods.SWP_NOZORDER | TaskbarNativeMethods.SWP_NOACTIVATE);
     }
 
+    // 用最近一次后台探测到的占用区间计算收缩后的宽度与位置。探测尚未完成或
+    // 失败时 _cachedObstructions 为空，安全降级为「不收缩、沿用原宽度」。
+    private TaskbarFreeRegionResult ResolveFreeRegion(
+        double taskbarWidth,
+        AppSettings settings,
+        double desiredWidth)
+    {
+        return TaskbarFreeRegionCalculator.Calculate(
+            taskbarWidth,
+            _cachedObstructions,
+            settings.HorizontalAnchor,
+            desiredWidth,
+            AppSettings.MinimumWindowWidth);
+    }
+
+    // 在后台线程探测任务栏占用区，完成后回发到窗口 Dispatcher 更新缓存并重定位，
+    // 避免 Win11 UI Automation 跨进程调用阻塞 UI 线程（曾导致任务栏卡死）。
+    private void ScheduleObstructionProbe(
+        IntPtr hwnd,
+        IntPtr parent,
+        IntPtr taskbarHandle,
+        Window window,
+        AppSettings settings,
+        DisplayMonitor? targetDisplay)
+    {
+        if (!GetWindowRect(parent, out var parentRect))
+        {
+            return;
+        }
+
+        var pixelsPerDip = targetDisplay?.PixelsPerDip ?? TaskbarPlacementService.GetPixelsPerDip(window);
+        var context = new TaskbarObstructionProbeContext(
+            taskbarHandle,
+            parent,
+            hwnd,
+            pixelsPerDip,
+            (parentRect.Right - parentRect.Left) / pixelsPerDip,
+            (parentRect.Bottom - parentRect.Top) / pixelsPerDip);
+        var dispatcher = window.Dispatcher;
+        var generation = ++_probeGeneration;
+
+        ThreadPool.QueueUserWorkItem(_ =>
+        {
+            var obstructions = ProbeInComContext(context);
+            if (dispatcher.HasShutdownStarted || dispatcher.HasShutdownFinished)
+            {
+                return;
+            }
+
+            dispatcher.BeginInvoke(() =>
+            {
+                if (_disposed || generation != _probeGeneration)
+                {
+                    return;
+                }
+
+                if (AreSameObstructions(_cachedObstructions, obstructions))
+                {
+                    return;
+                }
+
+                _cachedObstructions = obstructions;
+                Position(hwnd, parent, taskbarHandle, window, settings, targetDisplay);
+            });
+        });
+    }
+
+    private IReadOnlyList<TaskbarObstruction> ProbeInComContext(TaskbarObstructionProbeContext context)
+    {
+        // Win11 UI Automation 需要 COM；后台线程统一用 MTA 初始化。
+        var initializeResult = CoInitializeEx(IntPtr.Zero, CoInitMultiThreaded);
+        try
+        {
+            return _obstructionProbe.Probe(context);
+        }
+        finally
+        {
+            if (initializeResult is S_OK or S_FALSE)
+            {
+                CoUninitialize();
+            }
+        }
+    }
+
+    private static bool AreSameObstructions(
+        IReadOnlyList<TaskbarObstruction> first,
+        IReadOnlyList<TaskbarObstruction> second) =>
+        first.Count == second.Count && first.SequenceEqual(second);
+
     private static EmbeddedTaskbarNativeBounds? GetCurrentWindowBounds(
         IntPtr hwnd,
         TaskbarNativeMethods.NativeRect parentRect)
@@ -359,6 +451,8 @@ internal sealed class EmbeddedTaskbarAnchor : IDisposable
             windowRect.Bottom - windowRect.Top);
     }
 
+    // 已停用：歌词窗口改为收缩宽度避让系统元素，不再挤压任务栏应用图标区。
+    // 方法与其恢复逻辑保留，便于将来必要时回退到挤压式让位。
     private void SqueezeTaskList(IntPtr parent, AppSettings settings)
     {
         if (_taskListHandle == IntPtr.Zero || !IsWindow(_taskListHandle))
@@ -470,13 +564,8 @@ internal sealed class EmbeddedTaskbarAnchor : IDisposable
             return EmbeddedTaskbarAttachResult.Unavailable;
         }
 
-        if (!IsWindows11())
-        {
-            SqueezeTaskList(_parentHandle, settings);
-        }
-
         return EmbeddedTaskbarEmbeddingPolicy.FromPositionResult(
-            Position(hwnd, _parentHandle, window, settings, targetDisplay));
+            Position(hwnd, _parentHandle, _taskbarHandle, window, settings, targetDisplay));
     }
 
     private bool HasAttachmentForDifferentTarget(IntPtr hwnd, DisplayMonitor? targetDisplay) =>
@@ -490,6 +579,11 @@ internal sealed class EmbeddedTaskbarAnchor : IDisposable
     private static bool IsWindows11() =>
         Environment.OSVersion.Version.Major == 10 &&
         Environment.OSVersion.Version.Build >= 22000;
+
+    private static ITaskbarObstructionProbe CreateObstructionProbe() =>
+        IsWindows11()
+            ? new Win11TaskbarObstructionProbe()
+            : new Win10TaskbarObstructionProbe();
 
     private void ReportAttachOutcome(EmbeddedTaskbarAttachResult result, string reason)
     {
@@ -652,4 +746,10 @@ internal sealed class EmbeddedTaskbarAnchor : IDisposable
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool IsWindow(IntPtr hwnd);
+
+    [DllImport("ole32.dll", SetLastError = true)]
+    private static extern int CoInitializeEx(IntPtr reserved, int coInit);
+
+    [DllImport("ole32.dll")]
+    private static extern void CoUninitialize();
 }

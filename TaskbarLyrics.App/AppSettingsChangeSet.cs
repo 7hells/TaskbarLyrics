@@ -80,7 +80,8 @@ internal readonly record struct AppSettingsChangeSet(
             current.BackgroundOpacity != next.BackgroundOpacity ||
             current.ShowBorder != next.ShowBorder ||
             current.ShowTextShadow != next.ShowTextShadow ||
-            current.LyricsTextAlignment != next.LyricsTextAlignment;
+            current.LyricsTextAlignment != next.LyricsTextAlignment ||
+            current.ShowSingleLineLyrics != next.ShowSingleLineLyrics;
 
         var lyricsLayoutChanged = isInitialApplication ||
             current.FontSize != next.FontSize ||
@@ -88,7 +89,8 @@ internal readonly record struct AppSettingsChangeSet(
             current.CoverSize != next.CoverSize ||
             current.CoverGap != next.CoverGap ||
             current.CoverCornerRadius != next.CoverCornerRadius ||
-            current.LyricsLayoutScalePercent != next.LyricsLayoutScalePercent;
+            current.LyricsLayoutScalePercent != next.LyricsLayoutScalePercent ||
+            current.ShowSingleLineLyrics != next.ShowSingleLineLyrics;
 
         var windowLayoutChanged = isInitialApplication ||
             current.WindowWidth != next.WindowWidth ||

@@ -78,6 +78,17 @@ internal partial class LyricsMirrorWindow : Window, IDisposable
         ExecutePendingScript("style");
     }
 
+    // 供宿主周期触发：仅在已嵌入任务栏时重新定位，探测系统元素并收缩宽度。
+    internal void RefreshTaskbarEmbedding()
+    {
+        if (_settings.UseFloatingWindow || !_embeddedTaskbarAnchor.IsAttached)
+        {
+            return;
+        }
+
+        _embeddedTaskbarAnchor.Attach(this, _settings, _displayMonitor);
+    }
+
     public void SetContentVisibility(bool isVisible)
     {
         if (_isContentVisible == isVisible)

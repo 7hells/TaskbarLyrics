@@ -26,6 +26,8 @@ internal sealed record LyricsLayoutMetrics
     private const double BaseSpectrumMiddleHeight = 11;
     private const double BaseWindowVerticalSpacing = 10;
     private const double BaseTextVerticalSpacing = 12;
+    private const double DoubleLineTextHeightFactor = 2.15;
+    private const double SingleLineTextHeightFactor = 1.15;
     private const double BaseWindowMinimumHeight = 36;
 
     public required double ScalePercent { get; init; }
@@ -102,7 +104,10 @@ internal sealed record LyricsLayoutMetrics
             AlignPixelDown(coverSize / 2, pixelsPerDip));
         var coverVerticalSpacing = AlignPixel(BaseWindowVerticalSpacing * scale, pixelsPerDip);
         var minimumWindowHeight = AlignPixel(BaseWindowMinimumHeight * scale, pixelsPerDip);
-        var textHeight = fontSize * 2.15 + (BaseTextVerticalSpacing * scale);
+        var textHeightFactor = settings.ShowSingleLineLyrics
+            ? SingleLineTextHeightFactor
+            : DoubleLineTextHeightFactor;
+        var textHeight = (fontSize * textHeightFactor) + (BaseTextVerticalSpacing * scale);
         var contentHeight = settings.ShowCover
             ? Math.Max(textHeight, coverSize + coverVerticalSpacing)
             : textHeight;

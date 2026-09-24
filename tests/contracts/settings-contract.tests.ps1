@@ -42,7 +42,7 @@ foreach ($legacyMarker in @(
 }
 
 $settings = @(
-    'enableLocalLyrics', 'localMusicFolders', 'enableGlobalMediaHotkeys', 'showLyricsOnStartup', 'autoHideWhenNoPlayback', 'showLyricTranslation', 'enableWordScanning',
+    'enableLocalLyrics', 'localMusicFolders', 'enableGlobalMediaHotkeys', 'showLyricsOnStartup', 'autoHideWhenNoPlayback', 'showLyricTranslation', 'showSingleLineLyrics', 'enableWordScanning',
     'spectrumDisplayMode', 'lyricsLayoutScalePercent', 'fontSize', 'showCover',
     'coverSize', 'coverGap', 'coverCornerRadius', 'fontFamily',
     'fontWeight', 'lyricsTextAlignment', 'foregroundColorMode', 'showTextShadow', 'toolWindowTheme', 'showBackground',

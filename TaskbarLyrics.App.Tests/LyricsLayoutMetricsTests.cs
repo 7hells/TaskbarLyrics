@@ -99,6 +99,50 @@ public sealed class LyricsLayoutMetricsTests
     }
 
     [Fact]
+    public void CreateWhenSingleLineModeReducesWindowHeightBelowDoubleLine()
+    {
+        var doubleLine = LyricsLayoutMetrics.Create(new AppSettings
+        {
+            ShowCover = false,
+            FontSize = 14
+        });
+        var singleLine = LyricsLayoutMetrics.Create(new AppSettings
+        {
+            ShowCover = false,
+            FontSize = 14,
+            ShowSingleLineLyrics = true
+        });
+
+        Assert.True(singleLine.DesiredWindowHeight < doubleLine.DesiredWindowHeight);
+    }
+
+    [Fact]
+    public void CreateWhenSingleLineModePreservesMinimumWindowHeight()
+    {
+        var metrics = LyricsLayoutMetrics.Create(new AppSettings
+        {
+            ShowCover = false,
+            FontSize = 6,
+            ShowSingleLineLyrics = true
+        });
+
+        Assert.Equal(36, metrics.DesiredWindowHeight);
+    }
+
+    [Fact]
+    public void CreateWhenSingleLineModeAlignsWindowHeightToPhysicalPixels()
+    {
+        var metrics = LyricsLayoutMetrics.Create(new AppSettings
+        {
+            ShowCover = false,
+            FontSize = 30,
+            ShowSingleLineLyrics = true
+        }, pixelsPerDip: 1.25);
+
+        Assert.Equal(Math.Ceiling(metrics.DesiredWindowHeight * 1.25), metrics.DesiredWindowHeight * 1.25);
+    }
+
+    [Fact]
     public void VerticalPositionKeepsTheSameCenterAwayFromScreenEdges()
     {
         const double anchorCenterY = 600;

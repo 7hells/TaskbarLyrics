@@ -1114,7 +1114,7 @@ public partial class MainWindow : Window, IDisposable
             _lastWordScanProgress,
             _currentTranslation,
             _nextTranslation,
-            _currentSettings.ShowLyricTranslation && _hasTrackTranslation,
+            _currentSettings.ShowLyricTranslation && _hasTrackTranslation && !_currentSettings.ShowSingleLineLyrics,
             animateTransition,
             _lyricsPresentationScene);
         PublishPresentationCommand("lyrics", script, "lyrics web view update");
@@ -1682,6 +1682,17 @@ public partial class MainWindow : Window, IDisposable
         }
 
         TaskbarPlacementService.Anchor(this, _currentSettings, _displayMonitor);
+    }
+
+    // 供宿主周期触发：仅在已嵌入任务栏时重新定位，探测系统元素并收缩宽度。
+    internal void RefreshTaskbarEmbedding()
+    {
+        if (_currentSettings.UseFloatingWindow || !_embeddedTaskbarAnchor.IsAttached)
+        {
+            return;
+        }
+
+        _embeddedTaskbarAnchor.Attach(this, _currentSettings, _displayMonitor);
     }
 
     private void DetachAndRequestRecreation()

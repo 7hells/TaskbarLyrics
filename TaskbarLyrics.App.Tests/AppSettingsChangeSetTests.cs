@@ -137,6 +137,21 @@ public sealed class AppSettingsChangeSetTests
     }
 
     [Fact]
+    public void CreateWhenSingleLineLyricsChangesReappliesStyleAndWindowLayout()
+    {
+        var current = new AppSettings();
+        var next = current.Clone();
+        next.ShowSingleLineLyrics = true;
+
+        var changes = AppSettingsChangeSet.Create(current, next);
+
+        Assert.True(changes.VisualStyleChanged);
+        Assert.True(changes.LyricsLayoutChanged);
+        Assert.True(changes.RequiresLyricsWindowApply);
+        Assert.False(changes.LyricSyncServiceChanged);
+    }
+
+    [Fact]
     public void CreateWhenAutoHidePreferenceChangesReappliesLyricsWindowWithoutRebuildingService()
     {
         var current = new AppSettings();
