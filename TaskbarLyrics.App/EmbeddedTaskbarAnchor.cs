@@ -408,6 +408,10 @@ internal sealed class EmbeddedTaskbarAnchor : IDisposable
                 }
 
                 _cachedObstructions = obstructions;
+                Log.Diagnostic(
+                    "EMBED",
+                    $"ObstructionsChanged Count={obstructions.Count} " +
+                    string.Join(" ", obstructions.Select(obstruction => $"[{obstruction.Left:0.#},{obstruction.Right:0.#}]")));
                 Position(hwnd, parent, taskbarHandle, window, settings, targetDisplay);
             });
         });
@@ -431,9 +435,13 @@ internal sealed class EmbeddedTaskbarAnchor : IDisposable
     }
 
     private static bool AreSameObstructions(
-        IReadOnlyList<TaskbarObstruction> first,
-        IReadOnlyList<TaskbarObstruction> second) =>
-        first.Count == second.Count && first.SequenceEqual(second);
+        IReadOnlyList<TaskbarObstruction>? first,
+        IReadOnlyList<TaskbarObstruction>? second) =>
+        ReferenceEquals(first, second) ||
+        (first is not null &&
+         second is not null &&
+         first.Count == second.Count &&
+         first.SequenceEqual(second));
 
     private static EmbeddedTaskbarNativeBounds? GetCurrentWindowBounds(
         IntPtr hwnd,

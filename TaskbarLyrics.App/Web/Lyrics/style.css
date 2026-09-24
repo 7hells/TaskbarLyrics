@@ -327,6 +327,8 @@ html, body {
   text-overflow: ellipsis;
   line-height: inherit;
   padding-bottom: var(--line-text-padding-bottom);
+  /* 容纳某些字体末尾字形（如问号）的墨迹溢出，避免被 overflow 硬裁出切面。 */
+  padding-inline-end: 0.25em;
 }
 
 .line.word-scan-smoothing {

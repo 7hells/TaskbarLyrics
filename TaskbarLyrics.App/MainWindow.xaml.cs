@@ -389,6 +389,7 @@ public partial class MainWindow : Window, IDisposable
 
     private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
+        Log.Diagnostic("EMBED", $"WindowVisibleChanged IsVisible={IsVisible}");
         _smartTopmostController.OnWindowVisibilityChanged(IsVisible);
 
         if (IsVisible)
@@ -1775,6 +1776,7 @@ public partial class MainWindow : Window, IDisposable
     {
         if (_taskbarPlacementService.RequiresReattach(msg))
         {
+            Log.Diagnostic("EMBED", $"ReattachMessage Msg=0x{msg:X4} Visible={IsVisible}");
             Dispatcher.BeginInvoke(new Action(() =>
             {
                 // Taskbar messages can arrive while the window is closing; the deferred
