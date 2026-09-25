@@ -92,11 +92,13 @@
             <section class="panel">
               <div class="panel-head"><div><h2 id="lyricsHeading" tabindex="-1">显示行为</h2><p>控制歌词何时出现，以及翻译和逐词扫描的显示方式。</p></div></div>
               <div class="settings">
-                <div class="setting-row compact"><div class="setting-label"><strong>启动时显示歌词</strong></div><label class="switch"><input type="checkbox" data-setting="showLyricsOnStartup" aria-label="启动时显示歌词"><span class="switch-track"></span></label></div>
+                <div class="setting-row compact"><div class="setting-label"><strong>跟随音乐软件显示/隐藏</strong><small>音乐软件启动时自动显示歌词窗口，退出时自动隐藏。</small></div><label class="switch"><input type="checkbox" data-setting="autoShowHideWithMusicApp" aria-label="跟随音乐软件显示/隐藏"><span class="switch-track"></span></label></div>
                 <div class="setting-row compact"><div class="setting-label"><strong>无播放时自动隐藏</strong><small>未检测到播放媒体时隐藏歌词区域；暂停播放不会隐藏。</small></div><label class="switch"><input type="checkbox" data-setting="autoHideWhenNoPlayback" aria-label="无播放时自动隐藏"><span class="switch-track"></span></label></div>
                 <div class="setting-row compact"><div class="setting-label"><strong>显示歌词翻译</strong></div><label class="switch"><input type="checkbox" data-setting="showLyricTranslation" aria-label="显示歌词翻译"><span class="switch-track"></span></label></div>
                 <div class="setting-row compact"><div class="setting-label"><strong>单行显示歌词</strong><small>只显示当前歌词行，隐藏下一句预告与译文。</small></div><label class="switch"><input type="checkbox" data-setting="showSingleLineLyrics" aria-label="单行显示歌词"><span class="switch-track"></span></label></div>
                 <div class="setting-row compact"><div class="setting-label"><strong>逐词扫描</strong></div><label class="switch"><input type="checkbox" data-setting="enableWordScanning" aria-label="逐词扫描"><span class="switch-track"></span></label></div>
+                <div class="setting-row compact"><div class="setting-label"><strong>歌词过长自动缩小</strong><small>歌词超出宽度时缩小字号完整显示；逐词扫描时仍横向滚动。</small></div><label class="switch"><input type="checkbox" data-setting="autoFitFontSize" aria-label="歌词过长自动缩小"><span class="switch-track"></span></label></div>
+                <div class="setting-row" data-depends-hidden="autoFitFontSize"><div class="setting-label"><strong>缩小字号下限</strong><small>歌词超出宽度时，字号最多缩小到原字号的该百分比。</small></div><div class="slider-number-control"><input type="range" min="5" max="95" step="5" data-setting="autoFitFontSizeMinPercent" aria-label="缩小字号下限滑块"><label class="unit-input compact-number-input percentage-input"><input type="number" min="5" max="95" step="5" data-setting="autoFitFontSizeMinPercent" aria-label="缩小字号下限百分比"><span>%</span></label></div></div>
               </div>
             </section>
             <section class="panel">

@@ -298,6 +298,7 @@
     .setting-row.compact { grid-template-columns: minmax(0, 1fr) auto; }
     .setting-row.child { min-height: 54px; margin: 2px 0 6px 24px; padding: 9px 18px 9px 0; border: 0; border-radius: 0; background: transparent; }
     .setting-row.is-disabled { opacity: .46; }
+    .setting-row.is-hidden { display: none; }
     .mode-status { color: var(--muted-foreground); font-size: 11px; line-height: 1.45; }
     .window-mode-picker { min-width: 0; margin: 0; padding: 14px 18px 12px; border: 0; border-bottom: 1px solid var(--border); }
     .window-mode-options { min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }

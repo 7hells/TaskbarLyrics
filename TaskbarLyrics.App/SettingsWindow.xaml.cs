@@ -1121,13 +1121,15 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
                 DisplayName = definition.DisplayName
             })
             .ToList(),
-            ShowLyricsOnStartup = _settings.ShowLyricsOnStartup,
             AutoHideWhenNoPlayback = _settings.AutoHideWhenNoPlayback,
+            AutoShowHideWithMusicApp = _settings.AutoShowHideWithMusicApp,
             StartWithWindows = _settings.StartWithWindows,
             AutoCheckUpdates = _settings.AutoCheckUpdates,
             ShowLyricTranslation = _settings.ShowLyricTranslation,
             ShowSingleLineLyrics = _settings.ShowSingleLineLyrics,
             EnableWordScanning = _settings.EnableWordScanning,
+            AutoFitFontSize = _settings.AutoFitFontSize,
+            AutoFitFontSizeMinPercent = _settings.AutoFitFontSizeMinPercent,
             ToolWindowTheme = _settings.ToolWindowTheme,
             SpectrumDisplayMode = _settings.SpectrumDisplayMode.ToString(),
             SpectrumAudioAccessGranted = _settings.SpectrumAudioAccessGranted,
@@ -1336,11 +1338,11 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
             case "enableGlobalMediaHotkeys":
                 EnsureMediaHotkeySettings().Enabled = ReadBool(element, EnsureMediaHotkeySettings().Enabled);
                 break;
-            case "showLyricsOnStartup":
-                _settings.ShowLyricsOnStartup = ReadBool(element, _settings.ShowLyricsOnStartup);
-                break;
             case "autoHideWhenNoPlayback":
                 _settings.AutoHideWhenNoPlayback = ReadBool(element, _settings.AutoHideWhenNoPlayback);
+                break;
+            case "autoShowHideWithMusicApp":
+                _settings.AutoShowHideWithMusicApp = ReadBool(element, _settings.AutoShowHideWithMusicApp);
                 break;
             case "startWithWindows":
                 _settings.StartWithWindows = ReadBool(element, _settings.StartWithWindows);
@@ -1357,6 +1359,13 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
                 break;
             case "enableWordScanning":
                 _settings.EnableWordScanning = ReadBool(element, _settings.EnableWordScanning);
+                break;
+            case "autoFitFontSize":
+                _settings.AutoFitFontSize = ReadBool(element, _settings.AutoFitFontSize);
+                break;
+            case "autoFitFontSizeMinPercent":
+                _settings.AutoFitFontSizeMinPercent = AppSettings.ClampAutoFitFontSizeMinPercent(
+                    ReadDouble(element, _settings.AutoFitFontSizeMinPercent));
                 break;
             case "toolWindowTheme":
                 if (Enum.TryParse<ToolWindowTheme>(ReadString(element, _settings.ToolWindowTheme.ToString()), true, out var toolWindowTheme))
@@ -1581,7 +1590,8 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
             "lyricsLayoutScalePercent" or
             "windowWidth" or
             "xOffset" or
-            "yOffset";
+            "yOffset" or
+            "autoFitFontSizeMinPercent";
     }
 
     private static string ReadHotkeyBinding(JsonElement element, string fallback)
@@ -1900,8 +1910,8 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
         target.EnableLocalLyrics = source.EnableLocalLyrics;
         target.LocalMusicFolders = NormalizeLocalMusicFolders(source.LocalMusicFolders);
         target.GlobalMediaHotkeys = (source.GlobalMediaHotkeys ?? new GlobalMediaHotkeySettings()).Clone();
-        target.ShowLyricsOnStartup = source.ShowLyricsOnStartup;
         target.AutoHideWhenNoPlayback = source.AutoHideWhenNoPlayback;
+        target.AutoShowHideWithMusicApp = source.AutoShowHideWithMusicApp;
         target.StartWithWindows = source.StartWithWindows;
         target.AutoCheckUpdates = source.AutoCheckUpdates;
         target.LastUpdateCheckUtc = source.LastUpdateCheckUtc;
@@ -1909,6 +1919,8 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
         target.ShowLyricTranslation = source.ShowLyricTranslation;
         target.ShowSingleLineLyrics = source.ShowSingleLineLyrics;
         target.EnableWordScanning = source.EnableWordScanning;
+        target.AutoFitFontSize = source.AutoFitFontSize;
+        target.AutoFitFontSizeMinPercent = source.AutoFitFontSizeMinPercent;
         target.ToolWindowTheme = source.ToolWindowTheme;
         target.SpectrumDisplayMode = source.SpectrumDisplayMode;
         target.SpectrumAudioAccessGranted = source.SpectrumAudioAccessGranted;
@@ -2036,13 +2048,15 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
         public string HotkeyToggleWordScanning { get; set; } = "";
         public Dictionary<string, string> MediaHotkeyStatuses { get; set; } = new(StringComparer.Ordinal);
         public List<WebMediaHotkeyDefinition> MediaHotkeys { get; set; } = [];
-        public bool ShowLyricsOnStartup { get; set; }
         public bool AutoHideWhenNoPlayback { get; set; }
+        public bool AutoShowHideWithMusicApp { get; set; }
         public bool StartWithWindows { get; set; }
         public bool AutoCheckUpdates { get; set; }
         public bool ShowLyricTranslation { get; set; }
         public bool ShowSingleLineLyrics { get; set; }
         public bool EnableWordScanning { get; set; }
+        public bool AutoFitFontSize { get; set; }
+        public double AutoFitFontSizeMinPercent { get; set; }
         public ToolWindowTheme ToolWindowTheme { get; set; }
         public string SpectrumDisplayMode { get; set; } = TaskbarLyrics.App.SpectrumDisplayMode.Disabled.ToString();
         public bool SpectrumAudioAccessGranted { get; set; }

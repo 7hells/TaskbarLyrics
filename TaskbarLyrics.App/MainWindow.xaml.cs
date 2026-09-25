@@ -228,7 +228,7 @@ public partial class MainWindow : Window, IDisposable
             AttachToTaskbarHost();
         }
 
-        if (changes.VisualStyleChanged)
+        if (changes.VisualStyleChanged || changes.AutoFitFontSizeChanged)
         {
             PushStyleToWebView(snapshot);
         }

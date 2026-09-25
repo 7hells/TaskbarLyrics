@@ -6,8 +6,10 @@ internal readonly record struct AppSettingsChangeSet(
     bool LocalMediaLibraryChanged,
     bool LyricSyncServiceChanged,
     bool WordScanningChanged,
+    bool AutoFitFontSizeChanged,
     bool TranslationDisplayChanged,
     bool AutoHideWhenNoPlaybackChanged,
+    bool AutoShowHideWithMusicAppChanged,
     bool SpectrumDisplayChanged,
     bool VisualStyleChanged,
     bool LyricsLayoutChanged,
@@ -21,6 +23,7 @@ internal readonly record struct AppSettingsChangeSet(
         LocalMediaLibraryChanged ||
         LyricSyncServiceChanged ||
         WordScanningChanged ||
+        AutoFitFontSizeChanged ||
         TranslationDisplayChanged ||
         AutoHideWhenNoPlaybackChanged ||
         SpectrumDisplayChanged ||
@@ -55,11 +58,18 @@ internal readonly record struct AppSettingsChangeSet(
         var wordScanningChanged = isInitialApplication ||
             current.EnableWordScanning != next.EnableWordScanning;
 
+        var autoFitFontSizeChanged = isInitialApplication ||
+            current.AutoFitFontSize != next.AutoFitFontSize ||
+            current.AutoFitFontSizeMinPercent != next.AutoFitFontSizeMinPercent;
+
         var translationDisplayChanged = isInitialApplication ||
             current.ShowLyricTranslation != next.ShowLyricTranslation;
 
         var autoHideWhenNoPlaybackChanged = isInitialApplication ||
             current.AutoHideWhenNoPlayback != next.AutoHideWhenNoPlayback;
+
+        var autoShowHideWithMusicAppChanged = isInitialApplication ||
+            current.AutoShowHideWithMusicApp != next.AutoShowHideWithMusicApp;
 
         var spectrumDisplayChanged = isInitialApplication ||
             current.SpectrumDisplayMode != next.SpectrumDisplayMode ||
@@ -114,8 +124,10 @@ internal readonly record struct AppSettingsChangeSet(
             localMediaLibraryChanged,
             lyricSyncServiceChanged,
             wordScanningChanged,
+            autoFitFontSizeChanged,
             translationDisplayChanged,
             autoHideWhenNoPlaybackChanged,
+            autoShowHideWithMusicAppChanged,
             spectrumDisplayChanged,
             visualStyleChanged,
             lyricsLayoutChanged,

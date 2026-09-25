@@ -42,7 +42,7 @@ foreach ($legacyMarker in @(
 }
 
 $settings = @(
-    'enableLocalLyrics', 'localMusicFolders', 'enableGlobalMediaHotkeys', 'showLyricsOnStartup', 'autoHideWhenNoPlayback', 'showLyricTranslation', 'showSingleLineLyrics', 'enableWordScanning',
+    'enableLocalLyrics', 'localMusicFolders', 'enableGlobalMediaHotkeys', 'autoHideWhenNoPlayback', 'autoShowHideWithMusicApp', 'showLyricTranslation', 'showSingleLineLyrics', 'enableWordScanning', 'autoFitFontSize', 'autoFitFontSizeMinPercent',
     'spectrumDisplayMode', 'lyricsLayoutScalePercent', 'fontSize', 'showCover',
     'coverSize', 'coverGap', 'coverCornerRadius', 'fontFamily',
     'fontWeight', 'lyricsTextAlignment', 'foregroundColorMode', 'showTextShadow', 'toolWindowTheme', 'showBackground',
@@ -55,7 +55,7 @@ foreach ($key in $settings) {
 }
 
 $settingsWithoutDescriptions = @(
-    'showLyricsOnStartup', 'fontFamily', 'fontWeight',
+    'fontFamily', 'fontWeight',
     'foregroundColorMode', 'showTextShadow', 'showBackground', 'showBorder',
     'startWithWindows'
 )
@@ -114,7 +114,7 @@ foreach ($dialog in @(
 foreach ($colorSlider in @('colorSaturationSlider', 'colorBrightnessSlider')) {
     if (-not [regex]::IsMatch($html, "input[^>]+id=`"$colorSlider`"[^>]+type=`"range`"[^>]+aria-label", 'IgnoreCase')) { $errors.Add("color range semantics missing: $colorSlider") }
 }
-foreach ($key in @('lyricsLayoutScalePercent', 'coverGap', 'coverCornerRadius', 'backgroundOpacity', 'xOffset', 'yOffset', 'windowWidth')) {
+foreach ($key in @('lyricsLayoutScalePercent', 'coverGap', 'coverCornerRadius', 'backgroundOpacity', 'xOffset', 'yOffset', 'windowWidth', 'autoFitFontSizeMinPercent')) {
     if ([regex]::Matches($html, "type=`"range`"[^>]+data-setting=`"$key`"").Count -ne 1) { $errors.Add("missing unique slider: $key") }
     if ([regex]::Matches($html, "type=`"number`"[^>]+data-setting=`"$key`"").Count -ne 1) { $errors.Add("missing unique numeric pair: $key") }
 }
@@ -178,6 +178,7 @@ if (-not $settingsWindowXaml.Contains('MinWidth="720"')) { $errors.Add('settings
 if (-not $app.Contains('public void ShowLyricsWindow()')) { $errors.Add('missing App.ShowLyricsWindow') }
 if (-not $appSettings.Contains('public GlobalMediaHotkeySettings GlobalMediaHotkeys')) { $errors.Add('global media hotkeys settings missing') }
 if (-not $appSettings.Contains('public double LyricsLayoutScalePercent')) { $errors.Add('lyrics layout scale setting missing') }
+if (-not $appSettings.Contains('public double AutoFitFontSizeMinPercent')) { $errors.Add('auto-fit min percent setting missing') }
 if (-not $appSettings.Contains('public bool ShowCover')) { $errors.Add('show cover setting missing') }
 if (-not $appSettings.Contains('public bool AutoHideWhenNoPlayback')) { $errors.Add('auto-hide when no playback setting missing') }
 if (-not $appSettings.Contains('public bool SpectrumAudioAccessGranted')) { $errors.Add('spectrum audio access setting missing') }

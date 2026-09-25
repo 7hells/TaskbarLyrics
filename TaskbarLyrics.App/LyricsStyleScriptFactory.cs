@@ -21,6 +21,9 @@ internal static class LyricsStyleScriptFactory
             layoutScalePercent = metrics.ScalePercent,
             fontSize = metrics.FontSize,
             singleLineMode = settings.ShowSingleLineLyrics,
+            autoFitFontSize = settings.AutoFitFontSize,
+            autoFitMinRatio = AppSettings.ClampAutoFitFontSizeMinPercent(
+                settings.AutoFitFontSizeMinPercent) / 100.0,
             showCover = settings.ShowCover,
             coverSize = metrics.CoverSize,
             coverGap = metrics.CoverGap,

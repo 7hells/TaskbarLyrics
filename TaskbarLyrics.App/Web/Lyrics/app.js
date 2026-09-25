@@ -47,6 +47,7 @@ let wordScanFreezeState = null;
 let wordScanResumeCatchUpState = null;
 let isTranslationMode = false;
 let isSingleLineMode = false;
+let autoFitFontSize = true;
 let secondaryOpacity = 0.72;
 let lastLineProgress = Number.NaN;
 let lastCurrentLineIndex = -1;
@@ -62,6 +63,7 @@ const leavingLineOpacity = 0.16;
 const coverSwapDelayMs = 180;
 const coverSwitchMinVisibleMs = 420;
 const horizontalScrollAnchorRatio = 0.65;
+let autoFitMinRatio = 0.6;
 const SEARCHING_TEXT = "\u6b63\u5728\u68c0\u7d22\u6b4c\u8bcd...";
 const LEGACY_SEARCHING_TEXT = "\u6b63\u5728\u5339\u914d\u6b4c\u8bcd...";
 let trackSwitchSearchTransitionActive = false;
@@ -403,9 +405,11 @@ function measureLineHorizontalScroll(lineElement) {
 function updateLineHorizontalScroll(lineElement, normalizedProgress) {
   if (normalizedProgress === null) {
     clearLineHorizontalScroll(lineElement);
+    applyLineAutoFit(lineElement);
     return;
   }
 
+  clearLineAutoFitSize(lineElement);
   const metrics = measureLineHorizontalScroll(lineElement);
   if (!metrics || metrics.viewportWidth <= 0 || metrics.overflowWidth < 0.5) {
     clearLineHorizontalScroll(lineElement, false);
@@ -427,6 +431,94 @@ function refreshLineHorizontalScroll(lineElement) {
   updateLineHorizontalScroll(lineElement, Number.isFinite(progress) ? clamp01(progress) : null);
 }
 
+function getLineBaseSize(lineElement) {
+  // 直接读取该行实际渲染的字号：current-line 用 --current-size，next-line 与
+  // translation-line 用 --next-size，避免按元素引用猜测而用错基准字号。
+  const computed = Number.parseFloat(window.getComputedStyle(lineElement).fontSize);
+  return Number.isFinite(computed) && computed > 0 ? computed : currentSize;
+}
+
+function clearLineAutoFitSize(lineElement) {
+  const elements = getLineScrollElements(lineElement);
+  if (!elements) {
+    return;
+  }
+
+  elements.baseText.style.fontSize = "";
+  const scanText = lineElement.querySelector(".line-text-scan");
+  if (scanText) {
+    scanText.style.fontSize = "";
+  }
+}
+
+function applyLineAutoFitSize(lineElement, fittedSize, baseSize) {
+  if (fittedSize >= baseSize) {
+    clearLineAutoFitSize(lineElement);
+    return;
+  }
+
+  const elements = getLineScrollElements(lineElement);
+  if (!elements) {
+    return;
+  }
+
+  const value = `${fittedSize.toFixed(2)}px`;
+  elements.baseText.style.fontSize = value;
+  const scanText = lineElement.querySelector(".line-text-scan");
+  if (scanText) {
+    scanText.style.fontSize = value;
+  }
+}
+
+function applyLineAutoFit(lineElement) {
+  const elements = getLineScrollElements(lineElement);
+  if (!elements) {
+    return;
+  }
+
+  if (!autoFitFontSize) {
+    clearLineAutoFitSize(lineElement);
+    return;
+  }
+
+  // Re-measure at the base size before shrinking so the ratio reflects the
+  // unsqueezed text width.
+  clearLineAutoFitSize(lineElement);
+  const metrics = measureLineHorizontalScroll(lineElement);
+  // Discard the cached metrics: shrinking changes the effective width, so the
+  // horizontal-scroll path must re-measure instead of reusing a stale value.
+  horizontalScrollMetrics.delete(lineElement);
+  if (!metrics || metrics.viewportWidth <= 0 || metrics.contentWidth <= 0) {
+    return;
+  }
+
+  // 文字严格窄于视口才无需缩小；相等/略超都尝试缩小，避免 scrollWidth 的整数
+  // 舍入把「实际超宽 1px 内」的文字误判为放得下，进而触发 ellipsis 截断末尾单词。
+  if (metrics.contentWidth < metrics.viewportWidth) {
+    return;
+  }
+
+  const baseSize = getLineBaseSize(lineElement);
+  let fittedSize = window.taskbarLyricsPresentation.computeFittedFontSize(
+    baseSize,
+    Math.max(1, metrics.viewportWidth - 1),
+    metrics.contentWidth,
+    autoFitMinRatio);
+  // 缩小后重新测量，若仍未严格放下则按剩余溢出再缩，最多两次，确保无 ellipsis。
+  for (let attempt = 0; attempt < 2; attempt++) {
+    applyLineAutoFitSize(lineElement, fittedSize, baseSize);
+    horizontalScrollMetrics.delete(lineElement);
+    const remeasured = measureLineHorizontalScroll(lineElement);
+    horizontalScrollMetrics.delete(lineElement);
+    if (remeasured && remeasured.contentWidth < remeasured.viewportWidth) {
+      break;
+    }
+    if (remeasured && remeasured.contentWidth > 0 && remeasured.viewportWidth > 0) {
+      fittedSize *= Math.max(1, remeasured.viewportWidth - 1) / remeasured.contentWidth;
+    }
+  }
+}
+
 function setLineText(lineElement, baseTextElement, scanTextElement, text) {
   const isChanged = baseTextElement?.textContent !== text ||
     (scanTextElement && scanTextElement.textContent !== text);
@@ -441,6 +533,7 @@ function setLineText(lineElement, baseTextElement, scanTextElement, text) {
   if (scanTextElement) {
     scanTextElement.textContent = text;
   }
+  applyLineAutoFit(lineElement);
 }
 
 function setCurrentLine(line) {
@@ -536,6 +629,33 @@ function applySingleLineMode(enabled) {
     setTranslationMode(false);
     setSecondaryLine(" ");
   }
+}
+
+function applyAutoFitFontSizeMode(enabled) {
+  const next = enabled !== false;
+  if (autoFitFontSize === next) {
+    return;
+  }
+
+  autoFitFontSize = next;
+  refreshLineHorizontalScroll(currentLineEl);
+  refreshLineHorizontalScroll(nextLineEl);
+}
+
+function applyAutoFitMinRatio(ratio) {
+  const parsed = Number(ratio);
+  if (!Number.isFinite(parsed)) {
+    return;
+  }
+
+  const next = Math.max(0, Math.min(1, parsed));
+  if (autoFitMinRatio === next) {
+    return;
+  }
+
+  autoFitMinRatio = next;
+  refreshLineHorizontalScroll(currentLineEl);
+  refreshLineHorizontalScroll(nextLineEl);
 }
 
 function setIncomingTranslationPair(original, translation, wordScanProgress) {
@@ -1645,6 +1765,7 @@ function updateMetrics() {
   root.style.setProperty("--next-size", `${nextSize.toFixed(2)}px`);
   setTrackOffset(0);
   refreshLineHorizontalScroll(currentLineEl);
+  refreshLineHorizontalScroll(nextLineEl);
 }
 
 function finalizeTransition(
@@ -2295,6 +2416,8 @@ const lyricsApi = {
     }
 
     applySingleLineMode(payload.singleLineMode === true);
+    applyAutoFitFontSizeMode(payload.autoFitFontSize);
+    applyAutoFitMinRatio(payload.autoFitMinRatio);
     root.style.setProperty("--font-family", payload.fontFamily || "\"SF Pro Display\", \"Segoe UI Variable Display\", \"Segoe UI Variable Text\", \"Microsoft YaHei UI\", sans-serif");
     applyLyricsTextAlignment(payload.textAlignment);
     const layoutScalePercent = Number(payload.layoutScalePercent);

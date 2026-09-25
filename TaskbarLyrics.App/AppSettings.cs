@@ -60,6 +60,9 @@ public sealed class AppSettings
     public const double DefaultLyricsLayoutScalePercent = 100;
     public const double MinimumLyricsLayoutScalePercent = 25;
     public const double MaximumLyricsLayoutScalePercent = 300;
+    public const double DefaultAutoFitFontSizeMinPercent = 60;
+    public const double MinimumAutoFitFontSizeMinPercent = 5;
+    public const double MaximumAutoFitFontSizeMinPercent = 95;
 
     public const double DefaultWindowWidth = 420;
     public const double MinimumWindowWidth = 320;
@@ -106,9 +109,13 @@ public sealed class AppSettings
 
     public List<string> LocalMusicFolders { get; set; } = new();
 
-    public bool ShowLyricsOnStartup { get; set; } = true;
-
     public bool AutoHideWhenNoPlayback { get; set; } = true;
+
+    // When enabled, the lyrics window follows the running music app: it shows
+    // while an SMTC session is present (even before playback starts) and hides
+    // when the session disappears. Pausing only folds the lyric text via
+    // AutoHideWhenNoPlayback; it does not hide the whole window.
+    public bool AutoShowHideWithMusicApp { get; set; } = true;
 
     public bool StartWithWindows { get; set; }
 
@@ -126,6 +133,15 @@ public sealed class AppSettings
     public bool ShowSingleLineLyrics { get; set; }
 
     public bool EnableWordScanning { get; set; } = true;
+
+    // When enabled, an overlong lyric line without word-scan timing shrinks its
+    // font (down to AutoFitFontSizeMinPercent of the requested size) so the full
+    // text stays visible instead of being clipped to an ellipsis.
+    public bool AutoFitFontSize { get; set; } = true;
+
+    // Lower bound (as a percentage of the requested font size) that overlong
+    // lyric lines may shrink to when AutoFitFontSize is enabled.
+    public double AutoFitFontSizeMinPercent { get; set; } = DefaultAutoFitFontSizeMinPercent;
 
     public ToolWindowTheme ToolWindowTheme { get; set; } = ToolWindowTheme.System;
 
@@ -250,6 +266,7 @@ public sealed class AppSettings
         CoverGap = ClampCoverGap(CoverGap);
         CoverCornerRadius = ClampCoverCornerRadius(CoverCornerRadius, CoverSize);
         LyricsLayoutScalePercent = ClampLyricsLayoutScalePercent(LyricsLayoutScalePercent);
+        AutoFitFontSizeMinPercent = ClampAutoFitFontSizeMinPercent(AutoFitFontSizeMinPercent);
         NormalizeLyricsTextAlignment();
     }
 
@@ -382,6 +399,14 @@ public sealed class AppSettings
             value,
             MinimumLyricsLayoutScalePercent,
             MaximumLyricsLayoutScalePercent);
+    }
+
+    public static double ClampAutoFitFontSizeMinPercent(double value)
+    {
+        return Math.Clamp(
+            value,
+            MinimumAutoFitFontSizeMinPercent,
+            MaximumAutoFitFontSizeMinPercent);
     }
 
     public static double ClampEffectiveWindowWidth(double baseWindowWidth, double scalePercent, double maxWidth)

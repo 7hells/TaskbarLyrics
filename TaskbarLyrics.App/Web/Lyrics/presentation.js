@@ -174,6 +174,21 @@
     return Math.max(0, Math.min(1, parsed));
   }
 
+  function computeFittedFontSize(baseSize, viewportWidth, contentWidth, minRatio = 0.6) {
+    const base = Number(baseSize);
+    const viewport = Number(viewportWidth);
+    const content = Number(contentWidth);
+    const ratio = Number.isFinite(minRatio) ? Math.max(0, Math.min(1, minRatio)) : 0.6;
+    if (!Number.isFinite(base) || base <= 0 ||
+        !Number.isFinite(viewport) || viewport <= 0 ||
+        !Number.isFinite(content) || content <= 0 ||
+        content <= viewport) {
+      return base;
+    }
+
+    return base * Math.max(ratio, viewport / content);
+  }
+
   function sameLyricsIdentity(current, target) {
     return current.scene === SCENES.LYRICS &&
       target.scene === SCENES.LYRICS &&
@@ -495,6 +510,7 @@
     TRANSITION_PRIMITIVES,
     DEFAULT_DURATION_MS,
     clamp01,
+    computeFittedFontSize,
     normalizeFrame,
     resolveTransitionPrimitive,
     TransitionDispatcher,

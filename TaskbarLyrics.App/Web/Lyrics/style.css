@@ -327,7 +327,9 @@ html, body {
   text-overflow: ellipsis;
   line-height: inherit;
   padding-bottom: var(--line-text-padding-bottom);
-  /* 容纳某些字体末尾字形（如问号）的墨迹溢出，避免被 overflow 硬裁出切面。 */
+  /* 容纳末尾字形（如问号）的墨迹溢出：padding box 比 content box 宽 0.25em，
+     墨迹落在 padding 区内不被裁切；文字放得下时 stack 的 fit-content 会把
+     padding 一并计入宽度，因此不会挤占文字可用空间。 */
   padding-inline-end: 0.25em;
 }
 

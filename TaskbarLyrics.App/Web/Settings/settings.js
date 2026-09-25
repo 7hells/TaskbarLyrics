@@ -1353,6 +1353,9 @@
         row.classList.toggle("is-disabled", !enabled);
         row.querySelectorAll("input, select, textarea, button").forEach(control => { control.disabled = !enabled; });
       });
+      $$('[data-depends-hidden]').forEach(row => {
+        row.classList.toggle("is-hidden", !Boolean(state[row.dataset.dependsHidden]));
+      });
     }
 
     function updateOutputs() {

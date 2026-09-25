@@ -167,6 +167,20 @@ public sealed class AppSettingsChangeSetTests
     }
 
     [Fact]
+    public void CreateWhenAutoShowHideWithMusicAppChangesDoesNotApplyLyricsWindow()
+    {
+        var current = new AppSettings();
+        var next = current.Clone();
+        next.AutoShowHideWithMusicApp = false;
+
+        var changes = AppSettingsChangeSet.Create(current, next);
+
+        Assert.True(changes.AutoShowHideWithMusicAppChanged);
+        Assert.False(changes.RequiresLyricsWindowApply);
+        Assert.False(changes.LyricSyncServiceChanged);
+    }
+
+    [Fact]
     public void CreateWhenSpectrumAudioAccessChangesReappliesSpectrumWithoutRebuildingOtherServices()
     {
         var current = new AppSettings();
@@ -241,6 +255,7 @@ public sealed class AppSettingsChangeSetTests
         Assert.True(changes.LyricSyncServiceChanged);
         Assert.True(changes.SpectrumDisplayChanged);
         Assert.True(changes.AutoHideWhenNoPlaybackChanged);
+        Assert.True(changes.AutoShowHideWithMusicAppChanged);
         Assert.True(changes.VisualStyleChanged);
         Assert.True(changes.LyricsLayoutChanged);
         Assert.True(changes.WindowLayoutChanged);
@@ -290,5 +305,20 @@ public sealed class AppSettingsChangeSetTests
 
         Assert.True(changes.WindowLayoutChanged);
         Assert.True(changes.RequiresLyricsWindowApply);
+    }
+
+    [Fact]
+    public void CreateWhenAutoFitFontSizeMinPercentChangesReappliesLyricsWindow()
+    {
+        var current = new AppSettings();
+        var next = current.Clone();
+        next.AutoFitFontSizeMinPercent = 40;
+
+        var changes = AppSettingsChangeSet.Create(current, next);
+
+        Assert.True(changes.AutoFitFontSizeChanged);
+        Assert.True(changes.RequiresLyricsWindowApply);
+        Assert.False(changes.LyricSyncServiceChanged);
+        Assert.False(changes.WindowLayoutChanged);
     }
 }
