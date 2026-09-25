@@ -149,6 +149,10 @@ internal sealed class EmbeddedTaskbarAnchor : IDisposable
     private readonly ITaskbarObstructionProbe _obstructionProbe = CreateObstructionProbe();
     private volatile IReadOnlyList<TaskbarObstruction> _cachedObstructions = [];
     private int _probeGeneration;
+    private int _probeInFlight;
+    private long _lastProbeTimestampTicks;
+    private static readonly long ObstructionProbeMinIntervalTicks =
+        (long)TimeSpan.FromSeconds(2).TotalMilliseconds;
 
     public bool IsAttached => _windowHandle != IntPtr.Zero && _parentHandle != IntPtr.Zero;
 
@@ -371,8 +375,26 @@ internal sealed class EmbeddedTaskbarAnchor : IDisposable
         AppSettings settings,
         DisplayMonitor? targetDisplay)
     {
+        // 节流：探测是昂贵的跨进程 UIA 枚举，而 60ms 主定时器每 tick 都会经
+        // AnchorToTaskbar -> Attach 走到这里。不限制频率会持续堆积未释放的
+        // AutomationElement COM 对象与线程池任务（长时间运行内存泄露、系统卡顿）。
+        if (Interlocked.CompareExchange(ref _probeInFlight, 1, 0) != 0)
+        {
+            return;
+        }
+
+        var nowTicks = Environment.TickCount64;
+        if (nowTicks - Volatile.Read(ref _lastProbeTimestampTicks) < ObstructionProbeMinIntervalTicks)
+        {
+            Interlocked.Exchange(ref _probeInFlight, 0);
+            return;
+        }
+
+        Volatile.Write(ref _lastProbeTimestampTicks, nowTicks);
+
         if (!GetWindowRect(parent, out var parentRect))
         {
+            Interlocked.Exchange(ref _probeInFlight, 0);
             return;
         }
 
@@ -389,31 +411,38 @@ internal sealed class EmbeddedTaskbarAnchor : IDisposable
 
         ThreadPool.QueueUserWorkItem(_ =>
         {
-            var obstructions = ProbeInComContext(context);
-            if (dispatcher.HasShutdownStarted || dispatcher.HasShutdownFinished)
+            try
             {
-                return;
+                var obstructions = ProbeInComContext(context);
+                if (dispatcher.HasShutdownStarted || dispatcher.HasShutdownFinished)
+                {
+                    return;
+                }
+
+                dispatcher.BeginInvoke(() =>
+                {
+                    if (_disposed || generation != _probeGeneration)
+                    {
+                        return;
+                    }
+
+                    if (AreSameObstructions(_cachedObstructions, obstructions))
+                    {
+                        return;
+                    }
+
+                    _cachedObstructions = obstructions;
+                    Log.Diagnostic(
+                        "EMBED",
+                        $"ObstructionsChanged Count={obstructions.Count} " +
+                        string.Join(" ", obstructions.Select(obstruction => $"[{obstruction.Left:0.#},{obstruction.Right:0.#}]")));
+                    Position(hwnd, parent, taskbarHandle, window, settings, targetDisplay);
+                });
             }
-
-            dispatcher.BeginInvoke(() =>
+            finally
             {
-                if (_disposed || generation != _probeGeneration)
-                {
-                    return;
-                }
-
-                if (AreSameObstructions(_cachedObstructions, obstructions))
-                {
-                    return;
-                }
-
-                _cachedObstructions = obstructions;
-                Log.Diagnostic(
-                    "EMBED",
-                    $"ObstructionsChanged Count={obstructions.Count} " +
-                    string.Join(" ", obstructions.Select(obstruction => $"[{obstruction.Left:0.#},{obstruction.Right:0.#}]")));
-                Position(hwnd, parent, taskbarHandle, window, settings, targetDisplay);
-            });
+                Interlocked.Exchange(ref _probeInFlight, 0);
+            }
         });
     }
 

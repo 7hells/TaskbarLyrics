@@ -908,43 +908,78 @@ public sealed class SmtcMusicSessionProvider : IMusicSessionProvider, IMediaPlay
             return false;
         }
 
-        foreach (var rawName in names)
+        try
         {
-            var name = rawName.Trim();
-            if (string.IsNullOrWhiteSpace(name))
+            foreach (var rawName in names)
             {
-                continue;
-            }
-
-            try
-            {
-                if (Process.GetProcessesByName(name).Length > 0)
+                var name = rawName.Trim();
+                if (string.IsNullOrWhiteSpace(name))
                 {
-                    return true;
+                    continue;
                 }
 
-                if (allProcesses.Any(p =>
+                try
                 {
+                    Process[] matches = Process.GetProcessesByName(name);
                     try
                     {
-                        return p.ProcessName.Contains(name, StringComparison.OrdinalIgnoreCase);
+                        if (matches.Length > 0)
+                        {
+                            return true;
+                        }
                     }
-                    catch
+                    finally
                     {
-                        return false;
+                        DisposeProcesses(matches);
                     }
-                }))
-                {
-                    return true;
+
+                    if (allProcesses.Any(p =>
+                    {
+                        try
+                        {
+                            return p.ProcessName.Contains(name, StringComparison.OrdinalIgnoreCase);
+                        }
+                        catch
+                        {
+                            return false;
+                        }
+                    }))
+                    {
+                        return true;
+                    }
                 }
+                catch
+                {
+                    // Ignore query failures.
+                }
+            }
+
+            return false;
+        }
+        finally
+        {
+            DisposeProcesses(allProcesses);
+        }
+    }
+
+    private static void DisposeProcesses(IEnumerable<Process>? processes)
+    {
+        if (processes is null)
+        {
+            return;
+        }
+
+        foreach (var process in processes)
+        {
+            try
+            {
+                process.Dispose();
             }
             catch
             {
-                // Ignore query failures.
+                // Ignore dispose failures.
             }
         }
-
-        return false;
     }
 
     private string ResolveSourceWithProcessFallback(string sourceApp)
@@ -1111,61 +1146,68 @@ public sealed class SmtcMusicSessionProvider : IMusicSessionProvider, IMediaPlay
             return false;
         }
 
-        foreach (var process in allProcesses)
+        try
         {
-            string processName;
-            string windowTitle;
-            try
+            foreach (var process in allProcesses)
             {
-                processName = process.ProcessName;
-                windowTitle = process.MainWindowTitle?.Trim() ?? string.Empty;
-            }
-            catch
-            {
-                continue;
+                string processName;
+                string windowTitle;
+                try
+                {
+                    processName = process.ProcessName;
+                    windowTitle = process.MainWindowTitle?.Trim() ?? string.Empty;
+                }
+                catch
+                {
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(windowTitle))
+                {
+                    continue;
+                }
+
+                if (!(processName.Contains("cloudmusic", StringComparison.OrdinalIgnoreCase) ||
+                      processName.Contains("netease", StringComparison.OrdinalIgnoreCase) ||
+                      processName.Contains("163", StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+
+                if (windowTitle.Contains("网易云音乐", StringComparison.OrdinalIgnoreCase) &&
+                    windowTitle.Length <= 12)
+                {
+                    continue;
+                }
+
+                var match = TitleArtistRegex.Match(windowTitle);
+                if (!match.Success)
+                {
+                    continue;
+                }
+
+                title = match.Groups["title"].Value.Trim();
+                artist = match.Groups["artist"].Value.Trim();
+
+                if (string.IsNullOrWhiteSpace(title))
+                {
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(artist))
+                {
+                    artist = "Unknown Artist";
+                }
+
+                return true;
             }
 
-            if (string.IsNullOrWhiteSpace(windowTitle))
-            {
-                continue;
-            }
-
-            if (!(processName.Contains("cloudmusic", StringComparison.OrdinalIgnoreCase) ||
-                  processName.Contains("netease", StringComparison.OrdinalIgnoreCase) ||
-                  processName.Contains("163", StringComparison.OrdinalIgnoreCase)))
-            {
-                continue;
-            }
-
-            if (windowTitle.Contains("网易云音乐", StringComparison.OrdinalIgnoreCase) &&
-                windowTitle.Length <= 12)
-            {
-                continue;
-            }
-
-            var match = TitleArtistRegex.Match(windowTitle);
-            if (!match.Success)
-            {
-                continue;
-            }
-
-            title = match.Groups["title"].Value.Trim();
-            artist = match.Groups["artist"].Value.Trim();
-
-            if (string.IsNullOrWhiteSpace(title))
-            {
-                continue;
-            }
-
-            if (string.IsNullOrWhiteSpace(artist))
-            {
-                artist = "Unknown Artist";
-            }
-
-            return true;
+            return false;
         }
-
-        return false;
+        finally
+        {
+            DisposeProcesses(allProcesses);
+        }
     }
 
     private static async Task<CoverReadResult> ReadCoverBytesAsync(
