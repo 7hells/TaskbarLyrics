@@ -188,6 +188,14 @@ public sealed class SmtcMusicSessionProvider : IMusicSessionProvider, IMediaPlay
     private string _lastPlaybackStateRefreshErrorKey = string.Empty;
     private DateTimeOffset _nextPlaybackStateRefreshErrorLogUtc;
     private int _isDisposed;
+    private readonly SessionPresenceTracker _sessionPresenceTracker = new();
+
+    // Raised when the presence of an active SMTC session changes (true=appeared,
+    // false=disappeared). Fired from the snapshot refresh path on the lyrics
+    // window thread; subscribers touching UI state must marshal accordingly.
+    public event Action<bool>? SessionPresenceChanged;
+
+    public bool HasActiveSession => _sessionPresenceTracker.HasActiveSession;
 
     public void SetRecognitionOrder(
         IReadOnlyList<string>? order,
@@ -339,6 +347,10 @@ public sealed class SmtcMusicSessionProvider : IMusicSessionProvider, IMediaPlay
         }
 
         _activeSessionCache.Clear();
+        if (_manager is not null)
+        {
+            _manager.SessionsChanged -= OnSessionsChanged;
+        }
         _manager = null;
         _managerLock.Dispose();
         GC.SuppressFinalize(this);
@@ -371,17 +383,53 @@ public sealed class SmtcMusicSessionProvider : IMusicSessionProvider, IMediaPlay
         await session.TryChangePlaybackPositionAsync(target.Ticks);
     }
 
+    private void UpdateSessionPresence(bool hasSession)
+    {
+        if (_sessionPresenceTracker.Update(hasSession))
+        {
+            Log.Diagnostic("SMTC-PRESENCE", $"SessionPresenceChanged HasSession={hasSession}");
+            SessionPresenceChanged?.Invoke(hasSession);
+        }
+    }
+
+    public void StartSessionPresenceMonitoring()
+    {
+        TaskObserver.Observe(InitializeSessionPresenceAsync(), "session presence monitoring");
+    }
+
+    private async Task InitializeSessionPresenceAsync()
+    {
+        var manager = await GetManagerAsync(CancellationToken.None);
+        if (manager is null)
+        {
+            return;
+        }
+
+        // Observe the current state once so a music app that was already running
+        // when TaskbarLyrics started is detected without waiting for an edge.
+        UpdateSessionPresence(SelectSession(manager) is not null);
+    }
+
+    private void OnSessionsChanged(
+        GlobalSystemMediaTransportControlsSessionManager sender,
+        SessionsChangedEventArgs args)
+    {
+        UpdateSessionPresence(SelectSession(sender) is not null);
+    }
+
     public async Task<PlaybackSnapshot> GetCurrentAsync(CancellationToken cancellationToken = default)
     {
         var manager = await GetManagerAsync(cancellationToken);
         if (manager is null)
         {
             _activeSessionCache.Clear();
+            UpdateSessionPresence(false);
             return BuildProcessFallbackSnapshot();
         }
 
         var session = SelectSession(manager);
         _activeSessionCache.Remember(session);
+        UpdateSessionPresence(session is not null);
         if (session is null)
         {
             return BuildProcessFallbackSnapshot();
@@ -773,6 +821,7 @@ public sealed class SmtcMusicSessionProvider : IMusicSessionProvider, IMediaPlay
             }
 
             _manager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
+            _manager.SessionsChanged += OnSessionsChanged;
             return _manager;
         }
         catch

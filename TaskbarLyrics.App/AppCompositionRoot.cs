@@ -7,7 +7,8 @@ namespace TaskbarLyrics.App;
 internal sealed record MusicSessionServices(
     IMusicSessionProvider SessionProvider,
     IMediaPlaybackController PlaybackController,
-    IPlayerRecognitionController PlayerRecognitionController);
+    IPlayerRecognitionController PlayerRecognitionController,
+    SmtcMusicSessionProvider Provider);
 
 internal interface IAppCompositionRoot : IDisposable
 {
@@ -35,6 +36,7 @@ internal sealed class AppCompositionRoot : IAppCompositionRoot
 {
     private readonly IResolvedLyricCache _resolvedLyricCache;
     private readonly Action _clearPipelineCache;
+    private MusicSessionServices? _musicSessionServices;
 
     public AppCompositionRoot()
         : this(JsonResolvedLyricCache.CreateDefault(), LyricPipelineCache.ClearDefault)
@@ -52,8 +54,15 @@ internal sealed class AppCompositionRoot : IAppCompositionRoot
 
     public MusicSessionServices CreateMusicSessionServices()
     {
+        // The provider is shared by the lyrics window and the application so that
+        // session-presence notifications reach the window-visibility controller.
+        return _musicSessionServices ??= CreateMusicSessionServicesCore();
+    }
+
+    private static MusicSessionServices CreateMusicSessionServicesCore()
+    {
         var provider = new SmtcMusicSessionProvider();
-        return new MusicSessionServices(provider, provider, provider);
+        return new MusicSessionServices(provider, provider, provider, provider);
     }
 
     public LyricSyncService CreateLyricSyncService(

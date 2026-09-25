@@ -22,6 +22,7 @@ public partial class App : System.Windows.Application, IDisposable
     private TrackLyricOffsetStore? _trackLyricOffsetStore;
     private GlobalMediaHotkeyService? _mediaHotkeyService;
     private AppCompositionRoot? _compositionRoot;
+    private SmtcMusicSessionProvider? _sessionPresenceProvider;
     private CancellationTokenSource? _activationServerCancellation;
     private SpectrumTuningSettings _spectrumTuningSettings = SpectrumTuningSettings.CreateDefault();
     private int _isDisposed;
@@ -83,11 +84,21 @@ public partial class App : System.Windows.Application, IDisposable
         _mediaHotkeyService = new GlobalMediaHotkeyService(ExecuteMediaHotkeyAsync);
         _mediaHotkeyService.Apply(Settings.GlobalMediaHotkeys);
 
-        if (Settings.ShowLyricsOnStartup)
+        _sessionPresenceProvider = _compositionRoot.CreateMusicSessionServices().Provider;
+        _sessionPresenceProvider.SessionPresenceChanged += OnSessionPresenceChanged;
+        _sessionPresenceProvider.StartSessionPresenceMonitoring();
+
+        if (Settings.AutoShowHideWithMusicApp)
+        {
+            // Visibility follows the running music app; the first snapshot refresh
+            // raises the presence edge within ~60ms and drives the initial state.
+            UserWantsLyricsVisible = false;
+        }
+        else
         {
             _lyricsWindowHost.Show();
+            UserWantsLyricsVisible = true;
         }
-        UserWantsLyricsVisible = Settings.ShowLyricsOnStartup;
 
         _lyricsWindowHost.ApplySpectrumTuning(_spectrumTuningSettings);
         _trayService = new TrayService(
@@ -134,6 +145,10 @@ public partial class App : System.Windows.Application, IDisposable
         _settingsStore?.Save(Settings);
         _spectrumTuningWindow?.Close();
         _mediaHotkeyService?.Dispose();
+        if (_sessionPresenceProvider is not null)
+        {
+            _sessionPresenceProvider.SessionPresenceChanged -= OnSessionPresenceChanged;
+        }
         _lyricsWindowHost?.Dispose();
         _compositionRoot?.Dispose();
         _trayService?.Dispose();
@@ -171,6 +186,11 @@ public partial class App : System.Windows.Application, IDisposable
         if (changes.GlobalMediaHotkeysChanged)
         {
             _mediaHotkeyService?.Apply(Settings.GlobalMediaHotkeys);
+        }
+
+        if (changes.AutoShowHideWithMusicAppChanged)
+        {
+            SynchronizeLyricsWindowVisibility();
         }
 
         return saved;
@@ -333,6 +353,48 @@ public partial class App : System.Windows.Application, IDisposable
             UserWantsLyricsVisible = true;
             _lyricsWindowHost.Show();
         }
+    }
+
+    private void OnSessionPresenceChanged(bool hasSession)
+    {
+        // The provider raises this on the lyrics window thread; marshal to the
+        // application thread before mutating window visibility.
+        Dispatcher.BeginInvoke(() => ApplySessionPresence(hasSession));
+    }
+
+    private void ApplySessionPresence(bool hasSession)
+    {
+        Log.Diagnostic(
+            "SMTC-PRESENCE",
+            $"ApplySessionPresence HasSession={hasSession} Visible={_lyricsWindowHost?.IsVisible}");
+        if (_lyricsWindowHost is null || !Settings.AutoShowHideWithMusicApp)
+        {
+            return;
+        }
+
+        if (hasSession)
+        {
+            if (!_lyricsWindowHost.IsVisible)
+            {
+                UserWantsLyricsVisible = true;
+                _lyricsWindowHost.Show();
+            }
+        }
+        else if (_lyricsWindowHost.IsVisible)
+        {
+            UserWantsLyricsVisible = false;
+            _lyricsWindowHost.Hide();
+        }
+    }
+
+    private void SynchronizeLyricsWindowVisibility()
+    {
+        if (_sessionPresenceProvider is null)
+        {
+            return;
+        }
+
+        ApplySessionPresence(_sessionPresenceProvider.HasActiveSession);
     }
 
     private void SetSpectrumDisplayMode(SpectrumDisplayMode mode)
